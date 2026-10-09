@@ -34,6 +34,8 @@ import { HomeSection } from "./components/home/HomeSection";
 import { AiChatbotSection } from "./components/chat/AiChatbotSection";
 import { ImageScannerSection } from "./components/scanner/ImageScannerSection";
 import { ReportsSection } from "./components/reports/ReportsSection";
+import { PWAInstallButton } from "./components/common/PWAInstallButton";
+import { OfflineIndicator } from "./components/common/OfflineIndicator";
 
 const SAMPLE_FARM_RECORDS: FarmRecord[] = [
   {
@@ -261,8 +263,12 @@ export default function App() {
           onClick={() => setActiveTab("dashboard")}
           className="flex items-center gap-2.5 cursor-pointer select-none group"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-green-600 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-green-600/20 group-hover:scale-105 transition">
-            <span className="font-extrabold text-sm tracking-tighter">SK</span>
+          <div className="w-9 h-9 rounded-xl overflow-hidden shadow-md shadow-green-600/20 group-hover:scale-105 transition shrink-0">
+            <img
+              src="/icon-192.png"
+              alt="Smart Khaata"
+              className="w-full h-full object-cover"
+            />
           </div>
 
           <div>
@@ -338,14 +344,19 @@ export default function App() {
       {/* MAIN VIEW CONTAINER */}
       <main className="flex-1 pt-4 pb-20 md:pb-8">
         {activeTab === "dashboard" && (
-          <DashboardSection
-            home={homeExpenses}
-            rent={rentRecords}
-            farm={farmRecords}
-            lang={lang}
-            onNavigateTab={(tab) => setActiveTab(tab as any)}
-            onOpenQuickAdd={() => setShowQuickAdd(true)}
-          />
+          <>
+            <div className="w-full max-w-[1200px] mx-auto px-3 sm:px-5 lg:px-6 mb-4">
+              <PWAInstallButton lang={lang} variant="banner" />
+            </div>
+            <DashboardSection
+              home={homeExpenses}
+              rent={rentRecords}
+              farm={farmRecords}
+              lang={lang}
+              onNavigateTab={(tab) => setActiveTab(tab as any)}
+              onOpenQuickAdd={() => setShowQuickAdd(true)}
+            />
+          </>
         )}
 
         {activeTab === "farm" && (
@@ -565,6 +576,8 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* OFFLINE CONNECTIVITY INDICATOR */}
+      <OfflineIndicator lang={lang} />
     </div>
   );
 }
