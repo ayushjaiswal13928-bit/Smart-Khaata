@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --sk-bg: #090d16;
+  --sk-card: #111827;
+  --sk-card2: #1e293b;
+  --sk-card3: #0f172a;
+  --sk-border: rgba(255, 255, 255, 0.1);
+  --sk-border2: rgba(255, 255, 255, 0.16);
+  --sk-text: #f8fafc;
+  --sk-text2: #e2e8f0;
+  --sk-muted: #94a3b8;
+  --sk-dim: #64748b;
+  --sk-faint: #475569;
+  --sk-grid: rgba(255, 255, 255, 0.05);
+}
+
+.light-theme {
+  --sk-bg: #f3f6f4;
+  --sk-card: #ffffff;
+  --sk-card2: #f8fafc;
+  --sk-card3: #f1f5f9;
+  --sk-border: rgba(0, 0, 0, 0.08);
+  --sk-border2: rgba(0, 0, 0, 0.14);
+  --sk-text: #0f172a;
+  --sk-text2: #1e293b;
+  --sk-muted: #475569;
+  --sk-dim: #64748b;
+  --sk-faint: #94a3b8;
+  --sk-grid: rgba(0, 0, 0, 0.06);
+}
+
+/* Custom mobile scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
+}
+
+/* Mobile-feel utilities */
+body {
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: text;
+  background-color: var(--sk-bg);
+  color: var(--sk-text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", "Helvetica Neue", sans-serif;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.88; transform: scale(1.02); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2.5s infinite ease-in-out;
+}
