@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/Smart-Khaata/sw.js', { scope: '/Smart-Khaata/' })})}
