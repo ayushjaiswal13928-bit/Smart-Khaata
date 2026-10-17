@@ -3,371 +3,553 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import React, { useState, useEffect } from 'react';
 import {
-  LayoutDashboard,
   Wheat,
   Building2,
-  Home,
-  Bot,
-  Camera,
-  FileText,
+  ShoppingBag,
+  Settings,
   Languages,
-  Sun,
   Moon,
-  Plus,
-  X,
-  Sparkles,
-  TrendingUp,
-  Receipt,
-  CheckCircle,
-} from "lucide-react";
+  Sun,
+  ShieldCheck,
+  CheckCircle2,
+  LayoutDashboard,
+} from 'lucide-react';
+import { FarmRecord, Lang, Partner, PartnerCashEntry, RentRecord, HomeExpense } from './lib/types';
+import { FarmSection } from './components/farm/FarmSection';
+import { RentSection } from './components/rent/RentSection';
+import { HomeSection } from './components/home/HomeSection';
+import { DashboardSection } from './components/home/DashboardSection';
+import { SettingsSection } from './components/settings/SettingsSection';
+import { PinLockScreen } from './components/security/PinLockScreen';
+import {
+  DEFAULT_RECORDS,
+  RECORDS_STORAGE_KEY,
+  PARTNERS_STORAGE_KEY,
+  PARTNER_CASH_STORAGE_KEY,
+} from './lib/storageMigration';
+import { getSecuritySettings } from './lib/profileAndSecurity';
+import { AppLogo } from './components/common/AppLogo';
+import { PWAInstallButton } from './components/common/PWAInstallButton';
 
-import { Lang, FarmRecord, HomeExpense, RentRecord } from "./lib/types";
-import { STRINGS } from "./lib/i18n";
-import { DashboardSection } from "./components/dashboard/DashboardSection";
-import { FarmSection } from "./components/farm/FarmSection";
-import { RentSection } from "./components/rent/RentSection";
-import { HomeSection } from "./components/home/HomeSection";
-import { AiChatbotSection } from "./components/chat/AiChatbotSection";
-import { ImageScannerSection } from "./components/scanner/ImageScannerSection";
-import { ReportsSection } from "./components/reports/ReportsSection";
-import { PWAInstallButton } from "./components/common/PWAInstallButton";
-import { OfflineIndicator } from "./components/common/OfflineIndicator";
+const RENT_STORAGE_KEY = 'sk-rent-records';
+const HOME_STORAGE_KEY = 'sk-home-expenses';
+const APP_NAME_STORAGE_KEY = 'sk-app-name';
 
-const SAMPLE_FARM_RECORDS: FarmRecord[] = [
+const DEFAULT_RENT_RECORDS: RentRecord[] = [
   {
-    id: "f-1",
-    date: "2026-10-02",
-    type: "Expense",
-    crop: "Wheat",
-    expenseCategory: "बीज",
-    amount: 3200,
-    quantity: 80,
-    unit: "Kg",
-    price: 40,
-    field: "खेत 1 (बड़ा खेत)",
-    area: 4,
-    areaUnit: "बीघा",
-    note: "HD 2967 प्रमाणित उन्नत बीज",
-  },
-  {
-    id: "f-2",
-    date: "2026-10-04",
-    type: "Expense",
-    crop: "Wheat",
-    expenseCategory: "खाद",
-    amount: 5400,
-    quantity: 4,
-    unit: "Quintal",
-    price: 1350,
-    field: "खेत 1 (बड़ा खेत)",
-    area: 4,
-    areaUnit: "बीघा",
-    note: "DAP खाद 2 बोरी व पोटाश",
-  },
-  {
-    id: "f-3",
-    date: "2026-10-06",
-    type: "Sale",
-    crop: "Soybean",
-    amount: 88000,
-    quantity: 20,
-    unit: "Quintal",
-    price: 4400,
-    field: "खेत 2 (सड़क वाला)",
-    area: 3,
-    areaUnit: "बीघा",
-    note: "कृषि उपज मंडी में नकद बिक्री",
-  },
-];
-
-const SAMPLE_RENT_RECORDS: RentRecord[] = [
-  {
-    id: "r-1",
-    date: "2026-10-01",
-    tenant: "सुरेश वर्मा (दुकान 1)",
-    month: "Oct 2026",
-    whatsapp: "9876543210",
-    amount: 7500,
-    prevReading: 1240,
-    currentReading: 1395,
-    ratePerUnit: 8.5,
-    units: 155,
-    lightBill: 1317.5,
-    total: 8817.5,
-    paidAmount: 8817.5,
-    remainingAmount: 0,
-    status: "Received",
-    note: "दुकान किराया + बिजली बिल",
-  },
-  {
-    id: "r-2",
-    date: "2026-10-01",
-    tenant: "रोहित सिंह (कमरा 2)",
-    month: "Oct 2026",
-    whatsapp: "9823456789",
-    amount: 5000,
-    prevReading: 820,
-    currentReading: 890,
+    id: 'rent-1',
+    date: '2026-10-01',
+    tenant: 'राहुल शर्मा',
+    month: 'Oct 2026',
+    whatsapp: '9826112233',
+    amount: 6500,
+    prevReading: 1250,
+    currentReading: 1305,
     ratePerUnit: 8,
-    units: 70,
-    lightBill: 560,
-    total: 5560,
+    units: 55,
+    lightBill: 440,
+    total: 6940,
+    paidAmount: 6940,
+    remainingAmount: 0,
+    status: 'Received',
+    note: 'कमरा नंबर 2 (प्रथम तल)',
+  },
+  {
+    id: 'rent-2',
+    date: '2026-10-05',
+    tenant: 'विक्रम वर्मा (दुकानदार)',
+    month: 'Oct 2026',
+    whatsapp: '9425098765',
+    amount: 12000,
+    prevReading: 3400,
+    currentReading: 3515,
+    ratePerUnit: 9,
+    units: 115,
+    lightBill: 1035,
+    total: 13035,
     paidAmount: 0,
-    remainingAmount: 5560,
-    status: "Pending",
-    note: "प्रथम तल कमरा",
+    remainingAmount: 13035,
+    status: 'Pending',
+    note: 'दुकान नंबर 1 (रोड फ्रंट)',
   },
 ];
 
-const SAMPLE_HOME_EXPENSES: HomeExpense[] = [
+const DEFAULT_HOME_EXPENSES: HomeExpense[] = [
   {
-    id: "h-1",
-    date: "2026-10-08",
-    category: "grocery",
-    amount: 2450,
-    note: "आटा, तेल, दाल व राशन का सामान",
+    id: 'home-1',
+    date: '2026-10-10',
+    category: 'grocery',
+    note: 'महीने का राशन, तेल व मसाले',
+    amount: 4500,
   },
   {
-    id: "h-2",
-    date: "2026-10-07",
-    category: "bills",
-    amount: 1820,
-    note: "घरेलू बिजली बिल भुगतान",
+    id: 'home-2',
+    date: '2026-10-12',
+    category: 'bills',
+    note: 'घर का बिजली बिल भुगतान',
+    amount: 1650,
   },
   {
-    id: "h-3",
-    date: "2026-10-05",
-    category: "transport",
-    amount: 600,
-    note: "बाइक पेट्रोल",
+    id: 'home-3',
+    date: '2026-10-14',
+    category: 'medical',
+    note: 'माताजी की बीपी व शुगर की दवाई',
+    amount: 850,
   },
 ];
 
 export default function App() {
-  const [lang, setLang] = useState<Lang>(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("sk-lang") as Lang) || "hi";
+  const [lang, setLang] = useState<Lang>('hi');
+  const isHi = lang === 'hi';
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sk-theme');
+      if (saved === 'light' || saved === 'dark') return saved;
     }
-    return "hi";
+    return 'dark';
+  });
+  const [activeNav, setActiveNav] = useState<
+    'dashboard' | 'farm' | 'rent' | 'home' | 'settings'
+  >('dashboard');
+  const [appName, setAppName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(APP_NAME_STORAGE_KEY) || (isHi ? 'स्मार्ट खाता' : 'Smart Khata');
+    }
+    return (isHi ? 'स्मार्ट खाता' : 'Smart Khata');
   });
 
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("sk-theme") as "dark" | "light") || "dark";
-    }
-    return "dark";
-  });
-
-  const [activeTab, setActiveTab] = useState<
-    "dashboard" | "farm" | "rent" | "home" | "ai" | "scan" | "reports"
-  >("dashboard");
-
-  // State with LocalStorage
-  const [farmRecords, setFarmRecords] = useState<FarmRecord[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("sk-farm-records");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {}
+  const displayAppName = React.useMemo(() => {
+    const trimmed = (appName || '').trim();
+    if (!isHi) {
+      if (trimmed === 'स्मार्ट खाता' || trimmed === 'स्मार्ट खाता ' || trimmed === 'स्मार्ट खात' || !trimmed) {
+        return 'Smart Khata';
       }
-    }
-    return SAMPLE_FARM_RECORDS;
-  });
-
-  const [rentRecords, setRentRecords] = useState<RentRecord[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("sk-rent-records");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {}
-      }
-    }
-    return SAMPLE_RENT_RECORDS;
-  });
-
-  const [homeExpenses, setHomeExpenses] = useState<HomeExpense[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("sk-home-expenses");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {}
-      }
-    }
-    return SAMPLE_HOME_EXPENSES;
-  });
-
-  // Quick Add Modal
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [quickAddType, setQuickAddType] = useState<"farm" | "rent" | "home">("farm");
-
-  // Sync state to LocalStorage
-  useEffect(() => {
-    localStorage.setItem("sk-lang", lang);
-  }, [lang]);
-
-  useEffect(() => {
-    localStorage.setItem("sk-theme", theme);
-    if (theme === "light") {
-      document.documentElement.classList.add("light-theme");
+      if (trimmed === 'कृषि मुनीम') return 'Krishi Muneem';
+      if (trimmed === 'खेत खाता') return 'Khet Khata';
+      if (trimmed === 'बटाई साथी') return 'Batai Sathi';
+      if (trimmed === 'धन-धान्य बहीखाता') return 'Dhan Dhanya';
+      if (trimmed === 'किसान खतौनी') return 'Kisan Khatauni';
     } else {
-      document.documentElement.classList.remove("light-theme");
+      if (trimmed === 'Smart Khata' || trimmed === 'Smart Khaata' || !trimmed) {
+        return 'स्मार्ट खाता';
+      }
+      if (trimmed === 'Krishi Muneem') return 'कृषि मुनीम';
+      if (trimmed === 'Khet Khata') return 'खेत खाता';
+      if (trimmed === 'Batai Sathi') return 'बटाई साथी';
+      if (trimmed === 'Dhan Dhanya') return 'धन-धान्य बहीखाता';
+      if (trimmed === 'Kisan Khatauni') return 'किसान खतौनी';
     }
-  }, [theme]);
+    return appName;
+  }, [appName, isHi]);
 
   useEffect(() => {
-    localStorage.setItem("sk-farm-records", JSON.stringify(farmRecords));
-  }, [farmRecords]);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(APP_NAME_STORAGE_KEY, appName);
+    }
+  }, [appName]);
+
+  // Security Lock
+  const [security, setSecurity] = useState(() => getSecuritySettings());
+  const [isUnlocked, setIsUnlocked] = useState(() => !getSecuritySettings().isLockEnabled);
+
+  // Farm Records
+  const [records, setRecords] = useState<FarmRecord[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(RECORDS_STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        } catch { }
+      }
+    }
+    return [];
+  });
+
+  // Partners
+  const [partners, setPartners] = useState<Partner[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(PARTNERS_STORAGE_KEY);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch { }
+      }
+    }
+    return [];
+  });
+
+  // Partner cash entries
+  const [partnerCash, setPartnerCash] = useState<PartnerCashEntry[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(PARTNER_CASH_STORAGE_KEY);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch { }
+      }
+    }
+    return [];
+  });
+
+  // Rent Records
+  const [rentRecords, setRentRecords] = useState<RentRecord[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(RENT_STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        } catch { }
+      }
+    }
+    return [];
+  });
+
+  // Home Expenses
+  const [homeExpenses, setHomeExpenses] = useState<HomeExpense[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(HOME_STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        } catch { }
+      }
+    }
+    return [];
+  });
+
+  // LocalStorage Sync
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(records));
+    }
+  }, [records]);
 
   useEffect(() => {
-    localStorage.setItem("sk-rent-records", JSON.stringify(rentRecords));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PARTNERS_STORAGE_KEY, JSON.stringify(partners));
+    }
+  }, [partners]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PARTNER_CASH_STORAGE_KEY, JSON.stringify(partnerCash));
+    }
+  }, [partnerCash]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(RENT_STORAGE_KEY, JSON.stringify(rentRecords));
+    }
   }, [rentRecords]);
 
   useEffect(() => {
-    localStorage.setItem("sk-home-expenses", JSON.stringify(homeExpenses));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(HOME_STORAGE_KEY, JSON.stringify(homeExpenses));
+    }
   }, [homeExpenses]);
 
-  const toggleLang = () => {
-    setLang((prev) => (prev === "hi" ? "en" : "hi"));
-  };
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sk-theme', theme);
+      if (theme === 'light') {
+        document.documentElement.classList.add('light-theme');
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        document.documentElement.classList.remove('light-theme');
+        document.documentElement.removeAttribute('data-theme');
+      }
+    }
+  }, [theme]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const t = STRINGS[lang];
-  const isHi = lang === "hi";
-
-  const navItems = [
-    { id: "dashboard", label: isHi ? "डैशबोर्ड" : "Dashboard", icon: LayoutDashboard },
-    { id: "farm", label: isHi ? "खेती (Khet)" : "Farm", icon: Wheat },
-    { id: "rent", label: isHi ? "किराया" : "Rent", icon: Building2 },
-    { id: "home", label: isHi ? "घर खर्च" : "Home Exp", icon: Home },
-    { id: "ai", label: isHi ? "AI चैट" : "AI Advisor", icon: Bot, highlight: true },
-    { id: "scan", label: isHi ? "स्कैनर" : "Scanner", icon: Camera },
-    { id: "reports", label: isHi ? "रिपोर्ट्स" : "Reports", icon: FileText },
-  ];
+  const toggleLang = () => {
+    setLang((prev) => {
+      const next = prev === 'hi' ? 'en' : 'hi';
+      setAppName((curr) => {
+        const trimmed = (curr || '').trim();
+        if (next === 'en' && (trimmed === 'स्मार्ट खाता' || trimmed === 'स्मार्ट खाता ' || trimmed === 'स्मार्ट खात' || !trimmed)) {
+          return 'Smart Khata';
+        }
+        if (next === 'hi' && (trimmed === 'Smart Khata' || trimmed === 'Smart Khaata' || !trimmed)) {
+          return 'स्मार्ट खाता';
+        }
+        return curr;
+      });
+      return next;
+    });
+  };
 
   return (
-    <div className="min-h-screen flex flex-col transition-colors duration-200">
-      {/* TOP APP HEADER */}
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-[var(--sk-bg)]/90 border-b border-[var(--sk-border)] px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3">
-        {/* BRAND LOGO */}
-        <div
-          onClick={() => setActiveTab("dashboard")}
-          className="flex items-center gap-2.5 cursor-pointer select-none group"
-        >
-          <div className="w-9 h-9 rounded-xl overflow-hidden shadow-md shadow-green-600/20 group-hover:scale-105 transition shrink-0">
-            <img
-              src="/icon-192.png"
-              alt="Smart Khaata"
-              className="w-full h-full object-cover"
-            />
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-[#060e0a] text-slate-100' : 'bg-slate-50 text-slate-900'} flex flex-col selection:bg-emerald-500/30 transition-colors duration-150`}>
+      {/* PIN LOCK SCREEN OVERLAY IF ENABLED */}
+      {!isUnlocked && security.isLockEnabled && (
+        <PinLockScreen
+          correctPin={security.pin}
+          lang={lang}
+          onUnlocked={() => setIsUnlocked(true)}
+        />
+      )}
+
+      {/* Top Header */}
+      <header className={`sticky top-0 z-40 border-b backdrop-blur-md transition-colors ${theme === 'dark'
+        ? 'bg-[#08140e]/95 border-[#1a3525]'
+        : 'bg-white/95 border-slate-200 shadow-xs'
+        }`}>
+        <div className="max-w-[1200px] mx-auto px-3 sm:px-5 lg:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <AppLogo size="md" appName={displayAppName} />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className={`font-extrabold text-base sm:text-lg tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  {displayAppName}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 font-semibold border border-emerald-500/30">
+                  {isHi ? 'pro' : 'pro'}
+                </span>
+              </div>
+              <p className={`text-[10px] sm:text-[11px] -mt-0.5 hidden xs:block ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                {isHi ? 'खेत, बटाईदार, मकान किराया व घर खर्च' : 'Farm, Batai, Rental & Home Expenses'}
+              </p>
+            </div>
           </div>
 
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-sm sm:text-base tracking-tight text-[var(--sk-text)]">
-                {isHi ? "स्मार्ट खाता" : "Smart Khaata"}
-              </span>
-              <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-green-500/15 text-green-400 border border-green-500/25">
-                Pro
-              </span>
-            </div>
-            <p className="text-[10px] text-[var(--sk-dim)] hidden sm:block">
-              {isHi ? "खेती, मकान किराया व घरेलू हिसाब" : "Farming, Rentals & Household Accounts"}
-            </p>
+          {/* Right Header Controls */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <PWAInstallButton lang={lang} variant="header" />
+
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`h-8 w-8 rounded-lg border transition cursor-pointer flex items-center justify-center active:scale-95 shadow-sm ${theme === 'dark'
+                ? 'border-[#1e3c2c] bg-[#0c1a13] hover:bg-[#12271c] text-white'
+                : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
+                }`}
+              title={theme === 'dark' ? 'लाइट थीम चालू करें (Light Theme)' : 'डार्क थीम चालू करें (Dark Theme)'}
+            >
+              {theme === 'dark' ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-slate-700" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleLang}
+              className={`h-8 px-2.5 rounded-lg border text-xs font-bold transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm ${theme === 'dark'
+                ? 'border-[#1e3c2c] bg-[#0c1a13] hover:bg-[#12271c] text-emerald-300'
+                : 'border-slate-300 bg-white hover:bg-slate-100 text-emerald-700'
+                }`}
+              title="भाषा बदलें"
+            >
+              <Languages size={14} className={theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'} />
+              <span>{lang === 'hi' ? 'English' : 'हिन्दी'}</span>
+            </button>
           </div>
         </div>
 
-        {/* DESKTOP NAV TABS */}
-        <nav className="hidden md:flex items-center gap-1 bg-[var(--sk-card2)] p-1 rounded-2xl border border-[var(--sk-border)]">
-          {navItems.map((item) => {
+
+
+        {/* 4 MAIN MODULE TABS NAVIGATION */}
+        <div
+          className={`hidden sm:block border-t transition-colors ${theme === 'dark'
+            ? 'border-[#1a3525] bg-[#07130e]'
+            : 'border-slate-200 bg-slate-100/90'
+            }`}
+        >
+          <div className="max-w-[1200px] mx-auto px-2 sm:px-5 lg:px-6 flex items-center justify-around sm:justify-start overflow-x-auto no-scrollbar gap-1 py-2 sm:py-1">
+            <button
+              type="button"
+              onClick={() => setActiveNav('dashboard')}
+              className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-xs font-bold transition whitespace-nowrap cursor-pointer ${activeNav === 'dashboard'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : theme === 'dark'
+                    ? 'text-slate-400 hover:text-white hover:bg-[#0c1a13]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                }`}
+            >
+              <LayoutDashboard size={20} className="sm:w-[15px] sm:h-[15px]" />
+              <span>{isHi ? 'डैशबोर्ड' : 'Dashboard'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveNav('farm')}
+              className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-xs font-bold transition whitespace-nowrap cursor-pointer ${activeNav === 'farm'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : theme === 'dark'
+                  ? 'text-slate-400 hover:text-white hover:bg-[#0c1a13]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                }`}
+            >
+              <Wheat size={20} className="sm:w-[15px] sm:h-[15px]" />
+              <span>{isHi ? 'खेत व बटाई' : 'Farm & Batai'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveNav('rent')}
+              className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-xs font-bold transition whitespace-nowrap cursor-pointer ${activeNav === 'rent'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : theme === 'dark'
+                  ? 'text-slate-400 hover:text-white hover:bg-[#0c1a13]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                }`}
+            >
+              <Building2 size={20} className="sm:w-[15px] sm:h-[15px]" />
+              <span>{isHi ? 'किराया' : 'Rental'}</span>
+              <span className="text-[10px]">{rentRecords.length}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveNav('home')}
+              className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-xs font-bold transition whitespace-nowrap cursor-pointer ${activeNav === 'home'
+                ? 'bg-green-600 text-white shadow-sm'
+                : theme === 'dark'
+                  ? 'text-slate-400 hover:text-white hover:bg-[#0c1a13]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                }`}
+            >
+              <ShoppingBag size={20} className="sm:w-[15px] sm:h-[15px]" />
+              <span>{isHi ? 'घरेलू खर्च' : 'Home'}</span>
+              <span className="text-[10px]">{homeExpenses.length}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveNav('settings')}
+              className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-xs font-bold transition whitespace-nowrap cursor-pointer ${activeNav === 'settings'
+                ? 'bg-slate-700 text-white shadow-sm'
+                : theme === 'dark'
+                  ? 'text-slate-400 hover:text-white hover:bg-[#0c1a13]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                }`}
+            >
+              <Settings size={20} className="sm:w-[15px] sm:h-[15px]" />
+              <span>{isHi ? 'सेटिंग्स' : 'Settings'}</span>
+            </button>
+
+          </div>
+        </div>
+
+
+      </header>
+
+
+      
+      {/* MOBILE NAVIGATION */}
+      <div
+        className={`sm:hidden fixed bottom-0 left-0 right-0 z-[100] border-t ${
+          theme === 'dark'
+            ? 'bg-[#07130e] border-[#1a3525] text-white'
+            : 'bg-white border-slate-200 text-slate-900'
+        }`}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <nav
+          aria-label={isHi ? 'मुख्य नेविगेशन' : 'Main navigation'}
+          className="grid grid-cols-5 gap-1 px-2 pt-2 pb-1"
+        >
+          {[
+            {
+              id: 'dashboard',
+              label: isHi ? 'डैशबोर्ड' : 'Dashboard',
+              icon: LayoutDashboard,
+              activeColor: 'bg-emerald-600 text-white',
+            },
+            {
+              id: 'farm',
+              label: isHi ? 'खेत' : 'Farm',
+              icon: Wheat,
+              activeColor: 'bg-emerald-600 text-white',
+            },
+            {
+              id: 'rent',
+              label: isHi ? 'किराया' : 'Rent',
+              icon: Building2,
+              activeColor: 'bg-blue-600 text-white',
+            },
+            {
+              id: 'home',
+              label: isHi ? 'घरेलू खर्च' : 'Home',
+              icon: ShoppingBag,
+              activeColor: 'bg-violet-600 text-white',
+            },
+            {
+              id: 'settings',
+              label: isHi ? 'सेटिंग्स' : 'Settings',
+              icon: Settings,
+              activeColor: 'bg-slate-700 text-white',
+            },
+          ].map((item) => {
             const Icon = item.icon;
-            const active = activeTab === item.id;
+            const isActive = activeNav === item.id;
+
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id as any)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                  active
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "text-[var(--sk-muted)] hover:text-[var(--sk-text)] hover:bg-white/5"
+                onClick={() =>
+                  setActiveNav(
+                    item.id as
+                      | 'dashboard'
+                      | 'farm'
+                      | 'rent'
+                      | 'home'
+                      | 'settings'
+                  )
+                }
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex min-w-0 min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 transition-colors ${
+                  isActive
+                    ? `${item.activeColor} shadow-sm`
+                    : theme === 'dark'
+                      ? 'text-slate-400 active:bg-[#12271c]'
+                      : 'text-slate-600 active:bg-slate-100'
                 }`}
               >
-                <Icon size={14} />
-                <span>{item.label}</span>
+                <Icon size={21} strokeWidth={isActive ? 2.4 : 1.9} />
+                <span className="w-full truncate text-center text-[10px] font-semibold leading-tight sm:text-xs">
+                  {item.label}
+                </span>
               </button>
             );
           })}
         </nav>
+      </div>
 
-        {/* RIGHT CONTROLS: QUICK ADD, LANG, THEME */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowQuickAdd(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold text-xs shadow-md hover:from-green-500 hover:to-emerald-500 transition cursor-pointer active:scale-95"
-          >
-            <Plus size={14} />
-            <span className="hidden sm:inline">{isHi ? "नया जोड़ें" : "Quick Add"}</span>
-          </button>
 
-          <button
-            type="button"
-            onClick={toggleLang}
-            className="px-2.5 py-1.5 rounded-xl border border-[var(--sk-border)] bg-[var(--sk-card2)] hover:bg-white/5 text-xs font-semibold text-[var(--sk-text)] transition flex items-center gap-1 cursor-pointer"
-            title={isHi ? "Switch to English" : "हिन्दी में बदलें"}
-          >
-            <Languages size={13} className="text-green-400" />
-            <span>{isHi ? "EN" : "हिन्दी"}</span>
-          </button>
 
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="p-1.5 rounded-xl border border-[var(--sk-border)] bg-[var(--sk-card2)] hover:bg-white/5 text-[var(--sk-muted)] hover:text-[var(--sk-text)] transition cursor-pointer"
-            title={theme === "dark" ? "Light theme" : "Dark theme"}
-          >
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
-        </div>
-      </header>
-
-      {/* MAIN VIEW CONTAINER */}
-      <main className="flex-1 pt-4 pb-20 md:pb-8">
-        {activeTab === "dashboard" && (
-          <>
-            <div className="w-full max-w-[1200px] mx-auto px-3 sm:px-5 lg:px-6 mb-4">
-              <PWAInstallButton lang={lang} variant="banner" />
-            </div>
-            <DashboardSection
-              home={homeExpenses}
-              rent={rentRecords}
-              farm={farmRecords}
-              lang={lang}
-              onNavigateTab={(tab) => setActiveTab(tab as any)}
-              onOpenQuickAdd={() => setShowQuickAdd(true)}
-            />
-          </>
-        )}
-
-        {activeTab === "farm" && (
-          <FarmSection
-            records={farmRecords}
-            setRecords={setFarmRecords}
+      {/* Main Content Render */}
+      <main className="flex-1 py-4 pb-24 sm:pb-6 sm:py-6">
+        {activeNav === 'dashboard' && (
+          <DashboardSection
+            records={records}
+            rentRecords={rentRecords}
+            homeExpenses={homeExpenses}
             lang={lang}
+            onNavigate={setActiveNav}
+          />
+        )}
+        {activeNav === 'farm' && (
+          <FarmSection
+            records={records}
+            setRecords={setRecords}
+            lang={lang}
+            partners={partners}
+            setPartners={setPartners}
+            partnerCash={partnerCash}
+            setPartnerCash={setPartnerCash}
           />
         )}
 
-        {activeTab === "rent" && (
+        {activeNav === 'rent' && (
           <RentSection
             records={rentRecords}
             setRecords={setRentRecords}
@@ -375,7 +557,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === "home" && (
+        {activeNav === 'home' && (
           <HomeSection
             records={homeExpenses}
             setRecords={setHomeExpenses}
@@ -383,201 +565,34 @@ export default function App() {
           />
         )}
 
-        {activeTab === "ai" && (
-          <AiChatbotSection
+        {activeNav === 'settings' && (
+          <SettingsSection
             lang={lang}
-            onNavigateToScan={() => setActiveTab("scan")}
-          />
-        )}
-
-        {activeTab === "scan" && (
-          <ImageScannerSection
-            lang={lang}
-            onAddFarmRecord={(partial) => {
-              const newRec: FarmRecord = {
-                id: `f-${Date.now()}`,
-                date: new Date().toISOString().slice(0, 10),
-                type: partial.type || "Expense",
-                crop: partial.crop || "Wheat",
-                expenseCategory: partial.expenseCategory || "खाद",
-                amount: partial.amount || 1500,
-                note: partial.note || "Scanned expense",
-              };
-              setFarmRecords((prev) => [newRec, ...prev]);
-              setActiveTab("farm");
-            }}
-            onAddHomeExpense={(partial) => {
-              const newExp: HomeExpense = {
-                id: `h-${Date.now()}`,
-                date: new Date().toISOString().slice(0, 10),
-                category: partial.category || "grocery",
-                amount: partial.amount || 500,
-                note: partial.note || "Scanned expense",
-              };
-              setHomeExpenses((prev) => [newExp, ...prev]);
-              setActiveTab("home");
-            }}
-            onNavigateToChat={(query) => {
-              setActiveTab("ai");
-            }}
-          />
-        )}
-
-        {activeTab === "reports" && (
-          <ReportsSection
-            home={homeExpenses}
-            rent={rentRecords}
-            farm={farmRecords}
-            lang={lang}
+            toggleLang={toggleLang}
+            theme={theme}
+            toggleTheme={toggleTheme}
+            appName={displayAppName}
+            setAppName={setAppName}
+            farmRecords={records}
+            setFarmRecords={setRecords}
+            rentRecords={rentRecords}
+            setRentRecords={setRentRecords}
+            homeExpenses={homeExpenses}
+            setHomeExpenses={setHomeExpenses}
           />
         )}
       </main>
 
-      {/* MOBILE BOTTOM NAVIGATION DOCK */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--sk-card)]/95 backdrop-blur-lg border-t border-[var(--sk-border)] px-2 py-1.5 flex items-center justify-around shadow-2xl">
-        {[
-          { id: "dashboard", label: isHi ? "डैशबोर्ड" : "Home", icon: LayoutDashboard },
-          { id: "farm", label: isHi ? "खेती" : "Farm", icon: Wheat },
-          { id: "rent", label: isHi ? "किराया" : "Rent", icon: Building2 },
-          { id: "home", label: isHi ? "घर खर्च" : "Expenses", icon: Home },
-          { id: "ai", label: isHi ? "AI चैट" : "AI", icon: Bot, highlight: true },
-          { id: "scan", label: isHi ? "स्कैनर" : "Scan", icon: Camera },
-          { id: "reports", label: isHi ? "रिपोर्ट" : "Reports", icon: FileText },
-        ].map((item) => {
-          const Icon = item.icon;
-          const active = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActiveTab(item.id as any)}
-              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition cursor-pointer ${
-                active
-                  ? "text-green-400 font-bold scale-105"
-                  : "text-[var(--sk-dim)] hover:text-white"
-              }`}
-            >
-              <div
-                className={`p-1 rounded-lg ${
-                  active ? "bg-green-500/15" : ""
-                }`}
-              >
-                <Icon size={18} />
-              </div>
-              <span className="text-[10px] mt-0.5 tracking-tight truncate max-w-[48px]">
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* QUICK ADD ACTION MODAL */}
-      {showQuickAdd && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowQuickAdd(false);
-          }}
-        >
-          <div className="w-full max-w-sm rounded-3xl border border-[var(--sk-border)] bg-[var(--sk-card)] p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[var(--sk-border)] pb-3">
-              <div>
-                <h3 className="font-bold text-base text-[var(--sk-text)] flex items-center gap-2">
-                  <Sparkles size={17} className="text-green-400" />
-                  {isHi ? "त्वरित नया रिकॉर्ड जोड़ें" : "Quick Add Entry"}
-                </h3>
-                <p className="text-xs text-[var(--sk-muted)] mt-0.5">
-                  {isHi ? "आप किस खाते में जोड़ना चाहते हैं?" : "Which account do you want to add to?"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowQuickAdd(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--sk-muted)] hover:bg-white/5 cursor-pointer"
-              >
-                <X size={17} />
-              </button>
-            </div>
-
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowQuickAdd(false);
-                  setActiveTab("farm");
-                }}
-                className="w-full p-3.5 rounded-2xl border border-[var(--sk-border)] bg-[var(--sk-card2)] hover:border-green-500/50 hover:bg-green-500/10 flex items-center justify-between transition cursor-pointer text-left group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-500/15 flex items-center justify-center text-green-400 text-xl">
-                    🌾
-                  </div>
-                  <div>
-                    <div className="font-bold text-sm text-[var(--sk-text)] group-hover:text-green-400 transition">
-                      {isHi ? "खेती (Khet) लेन-देन" : "Farm / Crop Entry"}
-                    </div>
-                    <div className="text-xs text-[var(--sk-muted)] mt-0.5">
-                      {isHi ? "खाद, बीज, मजदूरी, पैदावार या बिक्री" : "Seeds, fertilizer, sales & yield"}
-                    </div>
-                  </div>
-                </div>
-                <Plus size={16} className="text-[var(--sk-dim)] group-hover:text-green-400" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowQuickAdd(false);
-                  setActiveTab("rent");
-                }}
-                className="w-full p-3.5 rounded-2xl border border-[var(--sk-border)] bg-[var(--sk-card2)] hover:border-blue-500/50 hover:bg-blue-500/10 flex items-center justify-between transition cursor-pointer text-left group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center text-blue-400 text-xl">
-                    🏢
-                  </div>
-                  <div>
-                    <div className="font-bold text-sm text-[var(--sk-text)] group-hover:text-blue-400 transition">
-                      {isHi ? "किराया व बिजली बिल" : "Tenant Rent & Light Bill"}
-                    </div>
-                    <div className="text-xs text-[var(--sk-muted)] mt-0.5">
-                      {isHi ? "मीटर रीडिंग, कमरा किराया, WhatsApp रसीद" : "Meter units, room rent, WhatsApp receipt"}
-                    </div>
-                  </div>
-                </div>
-                <Plus size={16} className="text-[var(--sk-dim)] group-hover:text-blue-400" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowQuickAdd(false);
-                  setActiveTab("home");
-                }}
-                className="w-full p-3.5 rounded-2xl border border-[var(--sk-border)] bg-[var(--sk-card2)] hover:border-red-500/50 hover:bg-red-500/10 flex items-center justify-between transition cursor-pointer text-left group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center text-red-400 text-xl">
-                    🛒
-                  </div>
-                  <div>
-                    <div className="font-bold text-sm text-[var(--sk-text)] group-hover:text-red-400 transition">
-                      {isHi ? "घरेलू दैनिक खर्च" : "Home Expense"}
-                    </div>
-                    <div className="text-xs text-[var(--sk-muted)] mt-0.5">
-                      {isHi ? "राशन, सब्जी, दूध, घरेलू बिजली बिल" : "Groceries, vegetables, daily expenses"}
-                    </div>
-                  </div>
-                </div>
-                <Plus size={16} className="text-[var(--sk-dim)] group-hover:text-red-400" />
-              </button>
-            </div>
-          </div>
+      {/* Footer */}
+      <footer className={`border-t py-4 text-center text-xs transition-colors ${theme === 'dark'
+        ? 'border-[#1a3525] bg-[#07130e] text-slate-400'
+        : 'border-slate-200 bg-white text-slate-600'
+        }`}>
+        <div className="max-w-[1200px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>🌾 स्मार्ट खाता - भारतीय किसानों के लिए डिजिटल कृषि, बटाई, किराया व घरेलू बहीखाता</span>
+          <span className="font-mono text-[11px] opacity-80">100% सुरक्षित • ऑफलाइन डेटा • प्रमाणित हिसाब</span>
         </div>
-      )}
-      {/* OFFLINE CONNECTIVITY INDICATOR */}
-      <OfflineIndicator lang={lang} />
+      </footer>
     </div>
   );
 }

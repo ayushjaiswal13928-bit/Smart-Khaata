@@ -1,6 +1,6 @@
 {
-  "name": "Smart Khaata - Mobile Business & Farm Manager",
-  "description": "स्मार्ट खाता मोबाइल ऐप: खेती (फसल, खर्च, बिक्री, Khet), मकान किराया (मीटर रीडिंग, WhatsApp बिल), घर खर्च और Gemini AI सलाहकार व फोटो स्कैनर।",
+  "name": "Smart Khata - Digital Ledger & Udhar Bahi Khata",
+  "description": "Smart Khata digital ledger book for merchants and personal finance. Track customer and supplier credits (Udhar/Jama), send WhatsApp reminders, and manage daily cashbook.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

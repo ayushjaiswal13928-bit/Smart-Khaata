@@ -1,67 +1,146 @@
 @import "tailwindcss";
 
 :root {
-  --sk-bg: #090d16;
-  --sk-card: #111827;
-  --sk-card2: #1e293b;
-  --sk-card3: #0f172a;
-  --sk-border: rgba(255, 255, 255, 0.1);
-  --sk-border2: rgba(255, 255, 255, 0.16);
-  --sk-text: #f8fafc;
-  --sk-text2: #e2e8f0;
+  --sk-bg: #060e0a;
+  --sk-card: #0c1a13;
+  --sk-card2: #07130e;
+  --sk-card3: #12271c;
+  --sk-border: #1e3c2c;
+  --sk-border-subtle: #14281e;
+  --sk-text: #f1f5f9;
+  --sk-text2: #cbd5e1;
   --sk-muted: #94a3b8;
-  --sk-dim: #64748b;
-  --sk-faint: #475569;
-  --sk-grid: rgba(255, 255, 255, 0.05);
+  --sk-faint: #64748b;
+  --sk-dim: #475569;
+  --sk-accent: #10b981;
+  --sk-header-bg: rgba(8, 20, 14, 0.95);
+  --sk-header-border: #1a3525;
+  --sk-subnav-bg: #07130e;
+  --sk-footer-bg: #07130e;
+  --sk-input-bg: #07130e;
 }
 
-.light-theme {
-  --sk-bg: #f3f6f4;
+:root.light-theme,
+html.light-theme,
+body.light-theme,
+.light-theme,
+[data-theme="light"] {
+  --sk-bg: #f8fafc;
   --sk-card: #ffffff;
-  --sk-card2: #f8fafc;
-  --sk-card3: #f1f5f9;
-  --sk-border: rgba(0, 0, 0, 0.08);
-  --sk-border2: rgba(0, 0, 0, 0.14);
+  --sk-card2: #f1f5f9;
+  --sk-card3: #e2e8f0;
+  --sk-border: #cbd5e1;
+  --sk-border-subtle: #e2e8f0;
   --sk-text: #0f172a;
-  --sk-text2: #1e293b;
-  --sk-muted: #475569;
-  --sk-dim: #64748b;
+  --sk-text2: #334155;
+  --sk-muted: #64748b;
   --sk-faint: #94a3b8;
-  --sk-grid: rgba(0, 0, 0, 0.06);
+  --sk-dim: #cbd5e1;
+  --sk-accent: #059669;
+  --sk-header-bg: rgba(255, 255, 255, 0.96);
+  --sk-header-border: #e2e8f0;
+  --sk-subnav-bg: #f8fafc;
+  --sk-footer-bg: #ffffff;
+  --sk-input-bg: #ffffff;
 }
 
-/* Custom mobile scrollbar */
+body {
+  font-family: 'Mukta', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--sk-bg);
+  color: var(--sk-text);
+  overflow-x: hidden;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--sk-card2);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.25);
+  background: var(--sk-border);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.45);
+  background: var(--sk-dim);
 }
 
-/* Mobile-feel utilities */
-body {
-  margin: 0;
-  padding: 0;
-  -webkit-tap-highlight-color: transparent;
-  user-select: text;
-  background-color: var(--sk-bg);
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Light theme safety mappings & polish */
+.light-theme .bg-\[\#0c1a13\] {
+  background-color: var(--sk-card) !important;
+}
+.light-theme .bg-\[\#07130e\] {
+  background-color: var(--sk-card2) !important;
+}
+.light-theme .bg-\[\#08140e\]\/95 {
+  background-color: var(--sk-header-bg) !important;
+}
+.light-theme .bg-\[\#0a1811\] {
+  background-color: var(--sk-card2) !important;
+}
+.light-theme .bg-\[\#060e0a\] {
+  background-color: var(--sk-bg) !important;
+}
+.light-theme .bg-\[\#12271c\] {
+  background-color: var(--sk-card3) !important;
+}
+.light-theme .border-\[\#1e3c2c\] {
+  border-color: var(--sk-border) !important;
+}
+.light-theme .border-\[\#1a3525\] {
+  border-color: var(--sk-border-subtle) !important;
+}
+.light-theme .border-\[\#14281e\] {
+  border-color: var(--sk-border-subtle) !important;
+}
+
+/* Light Theme Clean Surfaces & Contrast */
+.light-theme input,
+.light-theme select,
+.light-theme textarea {
   color: var(--sk-text);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", "Helvetica Neue", sans-serif;
+  background-color: var(--sk-card);
 }
 
-@keyframes pulse-subtle {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.88; transform: scale(1.02); }
+.light-theme input::placeholder,
+.light-theme textarea::placeholder {
+  color: var(--sk-muted);
 }
 
-.animate-pulse-subtle {
-  animation: pulse-subtle 2.5s infinite ease-in-out;
+.light-theme .bg-slate-950,
+.light-theme .bg-slate-900 {
+  background-color: var(--sk-card2);
+}
+
+.light-theme .border-slate-800,
+.light-theme .border-slate-700 {
+  border-color: var(--sk-border);
+}
+
+/* Ensure vibrant buttons retain white text */
+.light-theme .bg-emerald-600,
+.light-theme .bg-emerald-700,
+.light-theme .bg-green-600,
+.light-theme .bg-red-600,
+.light-theme .bg-blue-600 {
+  color: #ffffff !important;
+}
+
+/* Ensure headings and khet card titles in light theme have strong dark contrast */
+.light-theme h1:not(button *),
+.light-theme h2:not(button *),
+.light-theme h3:not(button *),
+.light-theme h4:not(button *) {
+  color: var(--sk-text);
 }

@@ -1,234 +1,243 @@
-import React, { useState } from 'react';
-import { Download, Smartphone, Check, X, Share } from 'lucide-react';
-import { usePWAInstall } from '../../hooks/usePWAInstall';
+import React, { useState, useEffect } from 'react';
+import { Smartphone, Download, Check, Sparkles, X, Share2, PlusSquare, Info } from 'lucide-react';
 import { Lang } from '../../lib/types';
 
 interface PWAInstallButtonProps {
   lang: Lang;
-  variant?: 'header' | 'banner' | 'card';
+  variant?: 'banner' | 'button' | 'header';
+  className?: string;
 }
 
-export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
-  lang,
-  variant = 'header',
-}) => {
-  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
-  const [showGuide, setShowGuide] = useState(false);
+export function PWAInstallButton({ lang, variant = 'button', className = '' }: PWAInstallButtonProps) {
   const isHi = lang === 'hi';
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
-  // If already installed and running as standalone app, suppress prompt
-  if (isInstalled) {
-    return null;
-  }
+  useEffect(() => {
+    // Detect standalone mode (already installed or running as PWA)
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    setIsInstalled(isStandalone);
+
+    // Detect iOS
+    const ua = window.navigator.userAgent.toLowerCase();
+    const isIOSDevice = /iphone|ipad|ipod/.test(ua);
+    setIsIOS(isIOSDevice);
+
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+
+    const installedHandler = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    };
+    window.addEventListener('appinstalled', installedHandler);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', installedHandler);
+    };
+  }, []);
 
   const handleInstallClick = async () => {
-    if (isInstallable) {
-      await install();
-    } else {
-      setShowGuide(true);
+    if (!deferredPrompt) {
+      // Show instructional guide modal instead of window.alert
+      setShowGuideModal(true);
+      return;
+    }
+    try {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstalled(true);
+      }
+      setDeferredPrompt(null);
+    } catch {
+      setShowGuideModal(true);
     }
   };
 
+  // If already running in standalone mode, display a subtle installed state or hide in header
+  if (isInstalled) {
+    if (variant === 'header') {
+      return (
+        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-700 dark:text-emerald-400 text-xs font-semibold">
+          <Check size={13} className="text-emerald-500" />
+          <span>{isHi ? 'इंस्टॉल है' : 'Installed'}</span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+        <Check size={16} />
+        <span>{isHi ? 'स्मार्ट खाता ऐप सफलतापूर्वक फोन में इंस्टॉल है' : 'App installed on this device'}</span>
+      </div>
+    );
+  }
+
   return (
     <>
+      {/* 1. HEADER VARIANT */}
       {variant === 'header' && (
         <button
           type="button"
           onClick={handleInstallClick}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer animate-pulse-subtle"
-          title={isHi ? 'ऐप को अपने फोन में इंस्टॉल करें' : 'Install Smart Khaata App'}
+          className={`h-8 px-2.5 sm:px-3 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 active:scale-95 cursor-pointer shrink-0 animate-pulse hover:animate-none ${className}`}
+          title={isHi ? 'ऐप फोन में इंस्टॉल करें' : 'Install App'}
         >
-          <Download size={14} />
-          <span className="hidden sm:inline">
-            {isHi ? 'ऐप इंस्टॉल करें' : 'Install App'}
-          </span>
-          <span className="sm:hidden">{isHi ? 'इंस्टॉल' : 'Install'}</span>
+          <Download size={14} className="stroke-[2.5]" />
+          <span className="font-bold">{isHi ? 'ऐप इंस्टॉल' : 'Install App'}</span>
         </button>
       )}
 
+      {/* 2. BANNER VARIANT */}
       {variant === 'banner' && (
-        <div className="relative overflow-hidden rounded-2xl border border-green-500/30 bg-gradient-to-r from-emerald-950/80 via-slate-900 to-green-950/70 p-3.5 sm:p-4 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <img
-              src="/icon-192.png"
-              alt="Smart Khaata"
-              className="w-11 h-11 rounded-2xl shadow-md border border-green-500/30 shrink-0"
-            />
+        <div className={`p-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-[var(--sk-card)] to-emerald-900/20 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md ${className}`}>
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 sm:mt-0">
+              <Smartphone size={20} />
+            </div>
             <div>
-              <div className="font-bold text-xs sm:text-sm text-white flex items-center gap-1.5">
-                {isHi ? 'स्मार्ट खाता ऐप इंस्टॉल करें' : 'Install Smart Khaata App'}
-                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-green-500/20 text-green-300 font-semibold border border-green-500/30">
-                  PWA
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
+              <h4 className="font-bold text-xs sm:text-sm text-[var(--sk-text)] flex items-center gap-1.5">
+                <span>{isHi ? 'स्मार्ट खाता को मोबाइल ऐप की तरह चलाएं' : 'Install Smart Khaata App'}</span>
+                <Sparkles size={13} className="text-amber-500 shrink-0" />
+              </h4>
+              <p className="text-[11px] text-[var(--sk-muted)] mt-0.5">
                 {isHi
-                  ? 'होम स्क्रीन पर जोड़ें — बिना इंटरनेट भी हिसाब देखें और ऐप जैसा चलाएं!'
-                  : 'Add to Home Screen for one-tap access & offline storage.'}
+                  ? 'बिना इंटरनेट ऑफलाइन चलेगा, सीधे होम स्क्रीन से 1-क्लिक में खुलेगा।'
+                  : 'Works offline without internet, opens with 1-click from your home screen.'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer flex items-center gap-1.5"
-            >
-              <Download size={14} />
-              {isHi ? 'अभी इंस्टॉल करें' : 'Install Now'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleInstallClick}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0"
+          >
+            <Download size={15} />
+            <span>{isHi ? 'फोन में इंस्टॉल करें' : 'Install App'}</span>
+          </button>
         </div>
       )}
 
-      {/* Guide Modal for iOS Safari and other browsers without native beforeinstallprompt */}
-      {showGuide && (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowGuide(false);
-          }}
+      {/* 3. BUTTON VARIANT */}
+      {variant === 'button' && (
+        <button
+          type="button"
+          onClick={handleInstallClick}
+          className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition cursor-pointer active:scale-95 ${className}`}
         >
-          <div className="w-full max-w-sm rounded-3xl border border-[var(--sk-border)] bg-[var(--sk-card)] p-5 shadow-2xl space-y-4">
+          <Download size={14} />
+          <span>{isHi ? 'फोन में इंस्टॉल करें (PWA App)' : 'Install App on Phone'}</span>
+        </button>
+      )}
+
+      {/* INSTRUCTIONAL MODAL (FOR IOS SAFARI OR MANUAL INSTALL) */}
+      {showGuideModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in"
+        >
+          <div className="bg-[var(--sk-card)] border border-[var(--sk-border)] rounded-2xl w-full max-w-sm p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--sk-border)] pb-3">
-              <div className="flex items-center gap-2.5">
-                <img
-                  src="/icon-192.png"
-                  alt="Smart Khaata"
-                  className="w-9 h-9 rounded-xl shadow border border-green-500/30"
-                />
-                <div>
-                  <h3 className="font-bold text-sm text-[var(--sk-text)]">
-                    {isHi ? 'ऐप इंस्टॉल करने का तरीका' : 'How to Install App'}
-                  </h3>
-                  <p className="text-[10px] text-[var(--sk-muted)]">
-                    Smart Khaata PWA
-                  </p>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <Smartphone size={18} />
                 </div>
+                <h3 className="font-bold text-sm text-[var(--sk-text)]">
+                  {isHi ? 'ऐप इंस्टॉल करने का तरीका' : 'How to Install App'}
+                </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setShowGuide(false)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--sk-muted)] hover:bg-white/5 cursor-pointer"
+                onClick={() => setShowGuideModal(false)}
+                className="p-1 rounded-lg text-[var(--sk-muted)] hover:text-[var(--sk-text)] hover:bg-[var(--sk-card2)] transition cursor-pointer"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
             {isIOS ? (
-              <div className="space-y-3 text-xs text-[var(--sk-text2)] leading-relaxed">
-                <p className="text-slate-300">
-                  {isHi
-                    ? 'iPhone / iPad (Safari) पर ऐप को होम स्क्रीन पर जोड़ने के लिए:'
-                    : 'To install on iPhone or iPad using Safari:'}
+              <div className="space-y-3 text-xs text-[var(--sk-text)]">
+                <p className="font-semibold text-emerald-700 dark:text-emerald-400">
+                  {isHi ? 'iPhone / iPad (Safari) के लिए:' : 'For iPhone / iPad (Safari):'}
                 </p>
-
-                <div className="space-y-2 rounded-2xl bg-[var(--sk-card2)] p-3 border border-[var(--sk-border)]">
-                  <div className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 font-bold flex items-center justify-center shrink-0 text-[11px]">
-                      1
-                    </span>
+                <ol className="list-decimal list-inside space-y-2 text-[var(--sk-muted)]">
+                  <li className="flex items-start gap-2">
+                    <Share2 size={16} className="text-blue-500 shrink-0 mt-0.5" />
                     <span>
-                      {isHi
-                        ? 'सफारी के नीचे '
-                        : 'Tap the '}
-                      <strong className="text-white inline-flex items-center gap-1 font-semibold">
-                        <Share size={12} className="text-blue-400" /> {isHi ? 'शेयर (Share)' : 'Share'}
-                      </strong>
-                      {isHi ? ' बटन पर टैप करें।' : ' button in Safari toolbar.'}
+                      {isHi ? 'सफारी ब्राउज़र में नीचे दिए Share (शेयर) बटन पर टैप करें।' : 'Tap the Share button in Safari toolbar.'}
                     </span>
-                  </div>
-
-                  <div className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 font-bold flex items-center justify-center shrink-0 text-[11px]">
-                      2
-                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <PlusSquare size={16} className="text-emerald-500 shrink-0 mt-0.5" />
                     <span>
-                      {isHi
-                        ? 'सूची में नीचे स्क्रॉल करके '
-                        : 'Scroll down and tap '}
-                      <strong className="text-white">
-                        {isHi ? '"होम स्क्रीन में जोड़ें" (Add to Home Screen)' : '"Add to Home Screen"'}
-                      </strong>
-                      {isHi ? ' चुनें।' : '.'}
+                      {isHi ? 'नीचे स्क्रॉल करके "Add to Home Screen" (होम स्क्रीन में जोड़ें) चुनें।' : 'Scroll down and select "Add to Home Screen".'}
                     </span>
-                  </div>
-
-                  <div className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 font-bold flex items-center justify-center shrink-0 text-[11px]">
-                      3
-                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check size={16} className="text-green-500 shrink-0 mt-0.5" />
                     <span>
-                      {isHi
-                        ? 'ऊपर दाईं ओर '
-                        : 'Tap '}
-                      <strong className="text-green-400">
-                        {isHi ? '"जोड़ें" (Add)' : '"Add"'}
-                      </strong>
-                      {isHi
-                        ? ' पर टैप करें। ऐप आपके फोन पर आ जाएगा!'
-                        : ' in top right. The app icon will appear on your home screen!'}
+                      {isHi ? 'ऊपर दाईं तरफ "Add" पर टैप करें। ऐप आपके फोन में आ जाएगी!' : 'Tap "Add". The app is now on your home screen!'}
                     </span>
-                  </div>
-                </div>
+                  </li>
+                </ol>
               </div>
             ) : (
-              <div className="space-y-3 text-xs text-[var(--sk-text2)] leading-relaxed">
-                <p className="text-slate-300">
-                  {isHi
-                    ? 'Android या Chrome ब्राउज़र पर इंस्टॉल करने के लिए:'
-                    : 'To install on Android or Chrome:'}
+              <div className="space-y-3 text-xs text-[var(--sk-text)]">
+                <p className="font-semibold text-emerald-700 dark:text-emerald-400">
+                  {isHi ? 'Android / Chrome / Edge के लिए:' : 'For Android / Chrome / Edge:'}
                 </p>
-
-                <div className="space-y-2 rounded-2xl bg-[var(--sk-card2)] p-3 border border-[var(--sk-border)]">
-                  <div className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 font-bold flex items-center justify-center shrink-0 text-[11px]">
-                      1
-                    </span>
+                <div className="space-y-2 text-[var(--sk-muted)]">
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-emerald-500 shrink-0">1.</span>
                     <span>
-                      {isHi
-                        ? 'ब्राउज़र के ऊपर तीन डॉट्स (⋮) मेनू पर टैप करें।'
-                        : 'Tap the three dots (⋮) menu in browser top right.'}
+                      {isHi ? 'ब्राउज़र के ऊपर दाईं ओर दिए तीन बिंदुओं (⋮) पर टैप करें।' : 'Tap the three dots menu (⋮) in your browser.'}
                     </span>
                   </div>
-
-                  <div className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 font-bold flex items-center justify-center shrink-0 text-[11px]">
-                      2
-                    </span>
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-emerald-500 shrink-0">2.</span>
                     <span>
-                      <strong className="text-white">
-                        {isHi ? '"ऐप इंस्टॉल करें" या "होम स्क्रीन में जोड़ें"' : '"Install app" or "Add to Home screen"'}
-                      </strong>
-                      {isHi ? ' चुनें।' : '.'}
+                      {isHi ? '"Install app" या "Add to Home screen" (होम स्क्रीन में जोड़ें) चुनें।' : 'Select "Install app" or "Add to Home screen".'}
                     </span>
                   </div>
-
-                  <div className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 font-bold flex items-center justify-center shrink-0 text-[11px]">
-                      3
-                    </span>
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-emerald-500 shrink-0">3.</span>
                     <span>
-                      {isHi
-                        ? 'कन्फर्म करें — ऐप फोन की होम स्क्रीन पर असली ऐप जैसा खुल जाएगा!'
-                        : 'Confirm installation to access directly from your phone app drawer!'}
+                      {isHi ? '"Install" पर क्लिक करें। ऐप आपके फोन में 1 सेकंड में डाउनलोड हो जाएगी!' : 'Click "Install" to download and add to your device.'}
                     </span>
                   </div>
                 </div>
               </div>
             )}
 
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+              <Info size={14} className="shrink-0 mt-0.5 text-amber-500" />
+              <span>
+                {isHi
+                  ? 'इंस्टॉल करने के बाद ऐप बिना इंटरनेट भी आपके सभी खेतों और खातों का हिसाब सुरक्षित रखेगी।'
+                  : 'Once installed, the app works completely offline without internet.'}
+              </span>
+            </div>
+
             <button
               type="button"
-              onClick={() => setShowGuide(false)}
-              className="w-full py-2.5 rounded-xl bg-[var(--sk-card2)] hover:bg-white/5 border border-[var(--sk-border)] font-semibold text-xs text-white transition cursor-pointer"
+              onClick={() => setShowGuideModal(false)}
+              className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer"
             >
-              {isHi ? 'समझ गया (बंद करें)' : 'Got it (Close)'}
+              {isHi ? 'ठीक है, समझ आ गया' : 'Got it'}
             </button>
           </div>
         </div>
       )}
     </>
   );
-};
+}

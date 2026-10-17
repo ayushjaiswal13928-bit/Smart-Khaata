@@ -12,12 +12,17 @@ import {
   X,
   IndianRupee,
   Zap,
+  Download,
+  Printer,
 } from "lucide-react";
 
 import { Lang, RentRecord, RentStatus } from "../../lib/types";
 import { STRINGS } from "../../lib/i18n";
 import { fmt } from "../../lib/utils";
-import { FormCard, SectionHeader, StatusBadge } from "../common/UI";
+import { exportCsvFile, generateCsvString } from "../../lib/csvExport";
+import { printFinancialReport } from "../../lib/pdfExport";
+import { shareViaWhatsApp } from "../../lib/whatsappSharing";
+import { FormCard, StatusBadge } from "../common/UI";
 
 interface RentSectionProps {
   records: RentRecord[];
@@ -35,6 +40,7 @@ interface RentForm {
   currentReading: string;
   ratePerUnit: string;
   status: RentStatus;
+  paidAmount: string;
   note: string;
 }
 
@@ -48,6 +54,7 @@ const EMPTY_FORM: RentForm = {
   currentReading: "0",
   ratePerUnit: "8",
   status: "Pending",
+  paidAmount: "",
   note: "",
 };
 
@@ -108,18 +115,35 @@ export function RentSection({ records, setRecords, lang }: RentSectionProps) {
   }, [records, search, statusFilter]);
 
   const summary = useMemo(() => {
-    const total = records.reduce((sum, r) => sum + Number(r.total || 0), 0);
-    const received = records
-      .filter((r) => r.status === "Received")
-      .reduce((sum, r) => sum + Number(r.total || 0), 0);
-    const pending = records
-      .filter((r) => r.status === "Pending")
-      .reduce((sum, r) => sum + Number(r.total || 0), 0);
-    const partial = records
-      .filter((r) => r.status === "Partial")
-      .reduce((sum, r) => sum + Number(r.total || 0), 0);
+    let total = 0;
+    let received = 0;
+    let pending = 0;
+    let partialCount = 0;
 
-    return { total, received, pending, partial };
+    for (const r of records) {
+      const tot = Number(r.total) || 0;
+      total += tot;
+
+      if (r.status === "Received") {
+        const pd = r.paidAmount !== undefined ? Number(r.paidAmount) : tot;
+        received += pd;
+        pending += Math.max(0, tot - pd);
+      } else if (r.status === "Pending") {
+        const pd = r.paidAmount !== undefined ? Number(r.paidAmount) : 0;
+        received += pd;
+        const rem = r.remainingAmount !== undefined ? Number(r.remainingAmount) : Math.max(0, tot - pd);
+        pending += rem;
+      } else {
+        // Partial
+        partialCount++;
+        const pd = r.paidAmount !== undefined ? Number(r.paidAmount) : 0;
+        received += pd;
+        const rem = r.remainingAmount !== undefined ? Number(r.remainingAmount) : Math.max(0, tot - pd);
+        pending += rem;
+      }
+    }
+
+    return { total, received, pending, partial: partialCount };
   }, [records]);
 
   const openAddForm = () => {
@@ -146,6 +170,7 @@ export function RentSection({ records, setRecords, lang }: RentSectionProps) {
       currentReading: String(record.currentReading),
       ratePerUnit: String(record.ratePerUnit),
       status: record.status,
+      paidAmount: record.paidAmount !== undefined ? String(record.paidAmount) : "",
       note: record.note,
     });
     setError("");
@@ -177,6 +202,26 @@ export function RentSection({ records, setRecords, lang }: RentSectionProps) {
       return;
     }
 
+    let paidAmount = 0;
+    let remainingAmount = calculated.total;
+    let status = form.status;
+
+    if (form.status === "Received") {
+      paidAmount = calculated.total;
+      remainingAmount = 0;
+    } else if (form.status === "Pending") {
+      paidAmount = 0;
+      remainingAmount = calculated.total;
+    } else {
+      // Partial
+      const enteredPaid = parseFloat(form.paidAmount) || 0;
+      paidAmount = Math.min(Math.max(0, enteredPaid), calculated.total);
+      remainingAmount = Math.max(0, calculated.total - paidAmount);
+      if (remainingAmount === 0 && paidAmount > 0) status = "Received";
+      else if (paidAmount === 0) status = "Pending";
+      else status = "Partial";
+    }
+
     const record: RentRecord = {
       id: editingId ?? `rent-${Date.now()}`,
       date: form.date,
@@ -190,9 +235,9 @@ export function RentSection({ records, setRecords, lang }: RentSectionProps) {
       units: calculated.units,
       lightBill: calculated.lightBill,
       total: calculated.total,
-      paidAmount: form.status === "Received" ? calculated.total : 0,
-      remainingAmount: form.status === "Received" ? 0 : calculated.total,
-      status: form.status,
+      paidAmount,
+      remainingAmount,
+      status,
       note: form.note.trim(),
     };
 
@@ -226,29 +271,118 @@ export function RentSection({ records, setRecords, lang }: RentSectionProps) {
   const sendWhatsApp = (record: RentRecord) => {
     const phone = record.whatsapp.replace(/\D/g, "");
     if (!phone) {
+      alert(isHi ? "किरायेदार का फ़ोन नंबर दर्ज नहीं है!" : "Phone number not available!");
       return;
     }
 
-    const message = isHi
-      ? `नमस्ते ${record.tenant} जी,\n\nमहीना: ${record.month}\nकमरा किराया: ₹${record.amount}\nबिजली मीटर रीडिंग: ${record.prevReading} से ${record.currentReading} (${record.units} यूनिट × ₹${record.ratePerUnit}) = ₹${record.lightBill}\nकुल देय राशि: ₹${record.total}\n\nधन्यवाद - Smart Khaata`
-      : `Hello ${record.tenant},\n\nMonth: ${record.month}\nRoom Rent: ₹${record.amount}\nElectricity Meter: ${record.prevReading} to ${record.currentReading} (${record.units} units × ₹${record.ratePerUnit}) = ₹${record.lightBill}\nTotal Due: ₹${record.total}\n\nThank you - Smart Khaata`;
+    const isPartialDue = record.remainingAmount !== undefined && record.remainingAmount > 0 && record.remainingAmount < record.total;
+    const dueBreakdown = isPartialDue
+      ? `\nकुल बिल: ₹${record.total}\nप्राप्त राशि: ₹${record.paidAmount || 0}\nशेष बकाया: ₹${record.remainingAmount}`
+      : `\nकुल देय राशि: ₹${record.total}`;
 
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.click();
+    const enDueBreakdown = isPartialDue
+      ? `\nTotal Bill: ₹${record.total}\nAmount Paid: ₹${record.paidAmount || 0}\nRemaining Balance: ₹${record.remainingAmount}`
+      : `\nTotal Due: ₹${record.total}`;
+
+    const message = isHi
+      ? `नमस्ते ${record.tenant} जी,\n\nमहीना: ${record.month}\nकमरा किराया: ₹${record.amount}\nबिजली मीटर रीडिंग: ${record.prevReading} से ${record.currentReading} (${record.units} यूनिट × ₹${record.ratePerUnit}) = ₹${record.lightBill}${dueBreakdown}\n\nधन्यवाद - स्मार्ट खाता`
+      : `Hello ${record.tenant},\n\nMonth: ${record.month}\nRoom Rent: ₹${record.amount}\nElectricity Meter: ${record.prevReading} to ${record.currentReading} (${record.units} units × ₹${record.ratePerUnit}) = ₹${record.lightBill}${enDueBreakdown}\n\nThank you - Smart Khata`;
+
+    shareViaWhatsApp(message, phone);
+  };
+
+  const printRentSlip = (record: RentRecord) => {
+    printFinancialReport({
+      title: isHi ? `किराया रसीद / बिल पर्ची - ${record.tenant}` : `Rent Receipt / Bill - ${record.tenant}`,
+      subtitle: isHi ? `महीना: ${record.month} | रसीद क्रमांक: #${record.id.slice(-6)}` : `Month: ${record.month} | Bill Ref: #${record.id.slice(-6)}`,
+      lang: lang === "hi" ? "hi" : "en",
+      summaryCards: [
+        { label: isHi ? "कमरा किराया" : "Room Rent", value: fmt(record.amount), color: "#2563eb" },
+        { label: isHi ? `बिजली बिल (${record.units} यूनिट)` : `Light Bill (${record.units} Units)`, value: fmt(record.lightBill), color: "#d97706" },
+        { label: isHi ? "कुल देय राशि" : "Total Bill", value: fmt(record.total), color: "#7c3aed" },
+        { label: isHi ? "स्थिति" : "Status", value: record.status === "Received" ? (isHi ? "प्राप्त (Paid)" : "Paid") : (isHi ? "बाकी (Due)" : "Pending"), color: record.status === "Received" ? "#16a34a" : "#dc2626" },
+      ],
+      tableHeaders: [
+        isHi ? "मद / विवरण" : "Particulars",
+        isHi ? "रीडिंग / यूनिट" : "Readings / Units",
+        isHi ? "दर (Rate)" : "Rate",
+        isHi ? "राशि (Amount)" : "Amount",
+      ],
+      tableRows: [
+        {
+          cells: [
+            isHi ? `कमरा किराया (${record.month})` : `Room Rent (${record.month})`,
+            "—",
+            "—",
+            fmt(record.amount),
+          ],
+        },
+        {
+          cells: [
+            isHi ? `बिजली बिल (रीडिंग ${record.prevReading} → ${record.currentReading})` : `Electricity (${record.prevReading} → ${record.currentReading})`,
+            `${record.units} Units`,
+            `₹${record.ratePerUnit}/unit`,
+            fmt(record.lightBill),
+          ],
+        },
+        {
+          cells: [
+            isHi ? "कुल योग (Grand Total)" : "Grand Total",
+            "—",
+            "—",
+            fmt(record.total),
+          ],
+        },
+      ],
+      footerNotes: isHi
+        ? `किरायेदार: ${record.tenant} | फोन: ${record.whatsapp || "—"} | स्मार्ट खाता डिजिटल रसीद`
+        : `Tenant: ${record.tenant} | Phone: ${record.whatsapp || "—"} | Digital receipt generated by Smart Khaata`,
+    });
+  };
+
+  const exportRentCSV = async () => {
+    if (filteredRecords.length === 0) return;
+    const isHindi = lang === "hi";
+    const headers = isHindi
+      ? ["तारीख", "किरायेदार", "महीना", "WhatsApp", "कमरा किराया (₹)", "पिछली रीडिंग", "वर्तमान रीडिंग", "यूनिट", "यूनिट रेट (₹)", "बिजली बिल (₹)", "कुल राशि (₹)", "प्राप्त राशि (₹)", "बकाया राशि (₹)", "स्थिति", "नोट"]
+      : ["Date", "Tenant", "Month", "WhatsApp", "Room Rent (INR)", "Prev Reading", "Current Reading", "Units", "Rate/Unit (INR)", "Light Bill (INR)", "Total (INR)", "Paid (INR)", "Remaining (INR)", "Status", "Note"];
+
+    const rows = filteredRecords.map((r) => [
+      r.date,
+      r.tenant,
+      r.month,
+      r.whatsapp || "",
+      r.amount,
+      r.prevReading,
+      r.currentReading,
+      r.units,
+      r.ratePerUnit,
+      r.lightBill,
+      r.total,
+      r.paidAmount,
+      r.remainingAmount,
+      r.status,
+      r.note || "",
+    ]);
+
+    const csvString = generateCsvString([headers, ...rows]);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    await exportCsvFile({
+      filename: `rent-report-${todayStr}.csv`,
+      csvString,
+      title: isHindi ? `किराया रिपोर्ट (${todayStr})` : `Rent Report (${todayStr})`,
+      lang,
+    });
   };
 
   return (
-    <div className="w-full max-w-[1200px] mx-auto px-3 sm:px-5 lg:px-6 pb-12">
+    <div className="w-full max-w-[1200px] mx-auto px-3 sm:px-5 lg:px-6 pb-24 sm:pb-16 space-y-4">
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-[var(--sk-text)] flex items-center gap-2">
             <Building2 className="text-blue-500" size={24} />
-            {isHi ? "मकान / दुकान किराया प्रबंधन" : "Rental Property Manager"}
+            <span>{isHi ? "मकान / दुकान किराया प्रबंधन" : "Rental Property Manager"}</span>
           </h2>
           <p className="text-xs sm:text-sm text-[var(--sk-muted)] mt-0.5">
             {isHi
@@ -257,18 +391,28 @@ export function RentSection({ records, setRecords, lang }: RentSectionProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openAddForm}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs sm:text-sm shadow-md hover:from-blue-500 hover:to-indigo-500 transition cursor-pointer self-start sm:self-auto"
-        >
-          <Plus size={16} />
-          {isHi ? "किराया जोड़ें" : "Add Rent Record"}
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <button
+            type="button"
+            onClick={exportRentCSV}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[var(--sk-border)] bg-[var(--sk-card2)] hover:bg-white/5 text-[var(--sk-text)] font-semibold text-xs sm:text-sm transition cursor-pointer"
+          >
+            <Download size={15} />
+            {isHi ? "CSV Export" : "Export CSV"}
+          </button>
+          <button
+            type="button"
+            onClick={openAddForm}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs sm:text-sm shadow-md hover:from-blue-500 hover:to-indigo-500 transition cursor-pointer"
+          >
+            <Plus size={16} />
+            {isHi ? "किराया जोड़ें" : "Add Rent Record"}
+          </button>
+        </div>
       </div>
 
       {/* SUMMARY STATS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <FormCard>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
@@ -319,7 +463,7 @@ export function RentSection({ records, setRecords, lang }: RentSectionProps) {
       </div>
 
       {/* FILTER SEARCH */}
-      <div className="flex flex-col sm:flex-row gap-2.5 mb-4">
+      <div className="flex flex-col sm:flex-row gap-2.5">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -528,6 +672,33 @@ export function RentSection({ records, setRecords, lang }: RentSectionProps) {
                 </select>
               </div>
 
+              {form.status === "Partial" && (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2 animate-in fade-in">
+                  <div>
+                    <label className="block text-xs font-semibold text-amber-700 dark:text-amber-300 mb-1">
+                      {isHi ? "प्राप्त राशि (Paid Amount ₹)" : "Amount Paid (₹)"} *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={calculated.total}
+                      step="any"
+                      required
+                      value={form.paidAmount}
+                      onChange={(e) => setForm((p) => ({ ...p, paidAmount: e.target.value }))}
+                      placeholder="e.g. 3000"
+                      className="w-full h-10 px-3 rounded-xl border border-amber-500/40 bg-[var(--sk-card2)] text-xs text-[var(--sk-text)] outline-none font-mono font-bold"
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-xs font-mono pt-1 text-amber-800 dark:text-amber-300">
+                    <span>{isHi ? "शेष बकाया:" : "Remaining Balance:"}</span>
+                    <span className="font-bold">
+                      ₹{Math.max(0, calculated.total - (parseFloat(form.paidAmount) || 0)).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-[var(--sk-muted)] mb-1">
                   {isHi ? "नोट / टिप्पणी" : "Note / Remarks"}
@@ -573,84 +744,139 @@ export function RentSection({ records, setRecords, lang }: RentSectionProps) {
             </p>
           </div>
         ) : (
-          filteredRecords.map((record) => (
-            <div
-              key={record.id}
-              className="rounded-2xl border border-[var(--sk-border)] bg-[var(--sk-card)] p-4 shadow-sm hover:border-blue-500/30 transition-all space-y-3"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0 font-bold">
-                    {record.tenant.slice(0, 1).toUpperCase()}
+          filteredRecords.map((record) => {
+            const isReceived = record.status === "Received";
+            return (
+              <div
+                key={record.id}
+                className="rounded-2xl border border-[var(--sk-border)] bg-[var(--sk-card)] p-3.5 sm:p-4 shadow-sm hover:border-blue-500/30 transition-all space-y-3"
+              >
+                {/* CARD TOP ROW */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400 shrink-0 font-bold text-base shadow-sm">
+                      {record.tenant.slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-sm sm:text-base text-[var(--sk-text)] truncate">
+                        {record.tenant}
+                      </div>
+                      <div className="text-[11px] sm:text-xs text-[var(--sk-muted)] truncate mt-0.5">
+                        {record.month} • {record.date} {record.note ? `• ${record.note}` : ""}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-bold text-sm sm:text-base text-[var(--sk-text)]">{record.tenant}</div>
-                    <div className="text-xs text-[var(--sk-muted)]">
-                      {record.month} • {record.date} {record.note ? `• ${record.note}` : ""}
+
+                  <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                    <div className="text-sm sm:text-base font-extrabold font-mono text-purple-400">
+                      {fmt(record.total)}
+                    </div>
+                    <StatusBadge status={record.status} />
+                  </div>
+                </div>
+
+                {/* RENT BREAKDOWN CHIPS */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-white/5 text-xs">
+                  <div className="rounded-xl bg-slate-900/60 p-2 border border-white/5">
+                    <div className="text-[10px] text-[var(--sk-dim)] font-medium">
+                      {isHi ? "कमरा किराया" : "Room Rent"}
+                    </div>
+                    <div className="font-bold font-mono text-[var(--sk-text)] mt-0.5 truncate">
+                      {fmt(record.amount)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/60 p-2 border border-white/5">
+                    <div className="text-[10px] text-[var(--sk-dim)] font-medium">
+                      {isHi ? "मीटर यूनिट" : "Units Used"}
+                    </div>
+                    <div className="font-bold font-mono text-blue-400 mt-0.5 truncate">
+                      {record.units} kWh
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/60 p-2 border border-white/5">
+                    <div className="text-[10px] text-[var(--sk-dim)] font-medium">
+                      {isHi ? "लाइट बिल" : "Light Bill"}
+                    </div>
+                    <div className="font-bold font-mono text-amber-400 mt-0.5 truncate">
+                      {fmt(record.lightBill)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-purple-950/20 p-2 border border-purple-500/25">
+                    <div className="text-[10px] text-purple-300 font-medium">
+                      {isHi ? "स्थिति / देय" : "Bill Status"}
+                    </div>
+                    <div className="font-bold font-mono text-purple-300 mt-0.5 truncate text-[11px]">
+                      {isReceived ? (isHi ? "पूर्ण भुगतान ✓" : "Paid ✓") : `${isHi ? "बाकी" : "Due"}: ${fmt(record.remainingAmount ?? record.total)}`}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  <StatusBadge status={record.status} />
-                  {record.status !== "Received" && (
-                    <button
-                      type="button"
-                      onClick={() => markReceived(record.id)}
-                      className="px-2.5 py-1 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                      title={isHi ? "जमा के रूप में दर्ज करें" : "Mark as Received"}
-                    >
-                      <CheckCircle2 size={13} /> {isHi ? "प्राप्त हुआ" : "Received"}
-                    </button>
-                  )}
-                  {record.whatsapp && (
-                    <button
-                      type="button"
-                      onClick={() => sendWhatsApp(record)}
-                      className="p-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 cursor-pointer"
-                      title="Send WhatsApp Bill Slip"
-                    >
-                      <MessageCircle size={15} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => openEditForm(record)}
-                    className="p-1.5 rounded-lg text-blue-400 hover:bg-blue-500/10 cursor-pointer"
-                  >
-                    <Edit3 size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteRecord(record.id)}
-                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 cursor-pointer"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
+                {/* ACTION ROW */}
+                <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-white/5">
+                  <div>
+                    {!isReceived ? (
+                      <button
+                        type="button"
+                        onClick={() => markReceived(record.id)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
+                      >
+                        <CheckCircle2 size={14} />
+                        <span>{isHi ? "जमा हुआ" : "Received"}</span>
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-emerald-400/80 font-medium flex items-center gap-1">
+                        <CheckCircle2 size={13} />
+                        <span>{isHi ? "भुगतान प्राप्त" : "Collected"}</span>
+                      </span>
+                    )}
+                  </div>
 
-              {/* RENT BREAKDOWN CHIPS */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-white/5 text-xs">
-                <div className="rounded-xl bg-slate-900/60 p-2">
-                  <div className="text-[10px] text-[var(--sk-dim)]">{isHi ? "कमरा किराया" : "Room Rent"}</div>
-                  <div className="font-bold font-mono text-[var(--sk-text)] mt-0.5">{fmt(record.amount)}</div>
-                </div>
-                <div className="rounded-xl bg-slate-900/60 p-2">
-                  <div className="text-[10px] text-[var(--sk-dim)]">{isHi ? "मीटर यूनिट" : "Units Used"}</div>
-                  <div className="font-bold font-mono text-blue-400 mt-0.5">{record.units} kWh</div>
-                </div>
-                <div className="rounded-xl bg-slate-900/60 p-2">
-                  <div className="text-[10px] text-[var(--sk-dim)]">{isHi ? "लाइट बिल" : "Light Bill"}</div>
-                  <div className="font-bold font-mono text-amber-400 mt-0.5">{fmt(record.lightBill)}</div>
-                </div>
-                <div className="rounded-xl bg-slate-900/60 p-2 border border-purple-500/20">
-                  <div className="text-[10px] text-[var(--sk-dim)]">{isHi ? "कुल देय राशि" : "Total Bill"}</div>
-                  <div className="font-bold font-mono text-purple-400 mt-0.5">{fmt(record.total)}</div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    {record.whatsapp && (
+                      <button
+                        type="button"
+                        onClick={() => sendWhatsApp(record)}
+                        className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl bg-green-500/10 border border-green-500/25 text-green-400 hover:bg-green-500/20 flex items-center justify-center cursor-pointer active:scale-95 transition"
+                        title="Send WhatsApp Bill Slip"
+                      >
+                        <MessageCircle size={15} />
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => printRentSlip(record)}
+                      className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl bg-purple-500/10 border border-purple-500/25 text-purple-400 hover:bg-purple-500/20 flex items-center justify-center cursor-pointer active:scale-95 transition"
+                      title={isHi ? "रसीद / बिल प्रिंट करें (PDF)" : "Print Bill Slip (PDF)"}
+                    >
+                      <Printer size={15} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => openEditForm(record)}
+                      className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500/20 flex items-center justify-center cursor-pointer active:scale-95 transition"
+                      title={isHi ? "संपादित करें" : "Edit"}
+                    >
+                      <Edit3 size={15} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => deleteRecord(record.id)}
+                      className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 hover:bg-red-500/20 flex items-center justify-center cursor-pointer active:scale-95 transition"
+                      title={isHi ? "हटाएं" : "Delete"}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

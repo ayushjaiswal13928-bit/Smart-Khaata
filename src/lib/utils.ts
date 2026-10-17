@@ -1,20 +1,26 @@
-export function fmt(value: number | string | undefined | null): string {
-  const num = Number(value || 0);
-  if (isNaN(num)) return "₹0";
-  const abs = Math.abs(num);
-  const formatted = abs.toLocaleString("en-IN", {
+export function fmt(value: number): string {
+  if (value === undefined || value === null || isNaN(value)) return '₹0';
+  const isNegative = value < 0;
+  const absVal = Math.abs(value);
+  const formatted = absVal.toLocaleString('en-IN', {
     maximumFractionDigits: 2,
   });
-  if (num < 0) {
-    return `-₹${formatted}`;
-  }
-  return `₹${formatted}`;
+  return `${isNegative ? '-' : ''}₹${formatted}`;
 }
 
-export function fmtNum(value: number | string | undefined | null): string {
-  const num = Number(value || 0);
-  if (isNaN(num)) return "0";
-  return num.toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  });
+export function formatDate(dateStr: string): string {
+  if (!dateStr) return '-';
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  } catch {
+    return dateStr;
+  }
+}
+
+export function cn(...classes: (string | boolean | undefined | null)[]): string {
+  return classes.filter(Boolean).join(' ');
 }
